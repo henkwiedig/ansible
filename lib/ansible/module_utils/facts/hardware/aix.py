@@ -221,12 +221,14 @@ class AIXHardware(Hardware):
 
         lsdev_cmd = self.module.get_bin_path('lsdev', True)
         lsattr_cmd = self.module.get_bin_path('lsattr', True)
+        entstat_cmd = self.module.get_bin_path('entstat', True)
         rc, out_lsdev, err = self.module.run_command(lsdev_cmd)
 
         for line in out_lsdev.splitlines():
             field = line.split()
 
             device_attrs = {}
+            device_vlans = {}
             device_name = field[0]
             device_state = field[1]
             device_type = field[2:]
@@ -238,10 +240,19 @@ class AIXHardware(Hardware):
                 attr_parameter = attr_fields[1]
                 device_attrs[attr_name] = attr_parameter
 
+            if re.match('^ent\d+', device_name):
+                entstat_cmd_args = [entstat_cmd, '-d', device_name]
+                rc, out_entstat, err = self.module.run_command(entstat_cmd_args)
+                for line in out_entstat.splitlines():
+                    m = re.match('^Port VLAN ID:\s+(\d+)', line)
+                    if m:
+                        device_vlans['port_vlan_id'] = m.group(1)
+
             device_facts['devices'][device_name] = {
                 'state': device_state,
                 'type': ' '.join(device_type),
-                'attributes': device_attrs
+                'attributes': device_attrs,
+                'vlans': device_vlans
             }
 
         return device_facts
